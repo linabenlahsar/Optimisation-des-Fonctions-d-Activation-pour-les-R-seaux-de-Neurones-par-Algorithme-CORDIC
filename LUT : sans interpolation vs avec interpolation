@@ -1,0 +1,52 @@
+figure('Name','S6 - Méthode LUT','NumberTitle','off');
+
+x_eval = linspace(-3, 3, 500);
+f_exact = tanh(x_eval);
+
+N = 16;  
+x_lut = linspace(-3, 3, N);
+y_lut = tanh(x_lut);
+
+
+f_lut_step = zeros(size(x_eval));
+for i = 1:length(x_eval)
+    [~, idx] = min(abs(x_lut - x_eval(i)));
+    f_lut_step(i) = y_lut(idx);
+end
+
+
+f_lut_interp = interp1(x_lut, y_lut, x_eval, 'linear', 'extrap');
+
+subplot(2,2,1);
+plot(x_eval, f_exact,     'k-',  'LineWidth',2,'DisplayName','Exact'); hold on;
+plot(x_eval, f_lut_step,  'r--', 'LineWidth',1.5,'DisplayName','LUT paliers');
+xlabel('x','FontSize',12); ylabel('tanh(x)','FontSize',12);
+title('LUT Sans interpolation');
+legend('FontSize',10); grid on;
+
+subplot(2,2,2);
+plot(x_eval, f_exact,      'k-',  'LineWidth',2,'DisplayName','Exact'); hold on;
+plot(x_eval, f_lut_interp, 'b--', 'LineWidth',1.5,'DisplayName','LUT + interp');
+xlabel('x','FontSize',12); ylabel('tanh(x)','FontSize',12);
+title('LUT  Avec interpolation');
+legend('FontSize',10); grid on;
+
+subplot(2,2,3);
+plot(x_eval, abs(f_exact - f_lut_step), 'r-', 'LineWidth',1.5);
+xlabel('x','FontSize',12); ylabel('Erreur absolue','FontSize',12);
+title('Erreur sans interp');
+grid on;
+
+subplot(2,2,4);
+plot(x_eval, abs(f_exact - f_lut_interp), 'b-', 'LineWidth',1.5);
+xlabel('x','FontSize',12); ylabel('Erreur absolue','FontSize',12);
+title('Erreur avec interp');
+grid on;
+
+sgtitle('LUT : comparaison sans / avec interpolation','FontSize',12,'FontWeight','bold');
+
+fprintf('\n--- LUT N=%d ---\n', N);
+fprintf('MSE sans interpolation : %.4e\n', mean((f_exact-f_lut_step).^2));
+fprintf('MSE avec interpolation : %.4e\n', mean((f_exact-f_lut_interp).^2));
+fprintf('Amélioration (rapport) : x%.0f\n', ...
+        mean((f_exact-f_lut_step).^2) / mean((f_exact-f_lut_interp).^2));

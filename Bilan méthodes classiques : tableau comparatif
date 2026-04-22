@@ -1,0 +1,92 @@
+figure('Name','S8 - Bilan méthodes','NumberTitle','off');
+
+x_ref = linspace(-4, 4, 1000);
+f_ref = tanh(x_ref);
+
+N32 = 32;
+xl = linspace(-4,4,N32); yl = tanh(xl);
+f_lut32 = arrayfun(@(xi) yl(max(1,min(N32,round((xi+4)/8*(N32-1)+1)))), x_ref);
+
+
+f_taylor7 = x_ref - x_ref.^3/3 + 2*x_ref.^5/15 - 17*x_ref.^7/315;
+
+f_cordic = cordic_tanh(x_ref, 16);
+
+err_lut   = abs(f_ref - f_lut32);
+err_tay   = abs(f_ref - f_taylor7);
+err_cord  = abs(f_ref - f_cordic);
+
+plot(x_ref, err_lut,  'r-',  'LineWidth',2,'DisplayName',sprintf('LUT N=32 — MSE=%.1e', mean(err_lut.^2))); hold on;
+plot(x_ref, err_tay,  'b--', 'LineWidth',2,'DisplayName',sprintf('Taylor n=7 — diverge'));
+plot(x_ref, err_cord, 'g-',  'LineWidth',2,'DisplayName',sprintf('CORDIC k=16 — MSE=%.1e', mean(err_cord.^2)));
+ylim([0, 0.15]);
+xlabel('x','FontSize',13); ylabel('Erreur absolue','FontSize',11);
+title('Bilan des méthodes — Erreur absolue sur [-4, +4]','FontSize',11);
+legend('FontSize',11,'Location','northwest'); grid on;
+
+methods = {'LUT N=32 (sans interp)','LUT N=16 (avec interp)','Taylor n=7','CORDIC k=16'};
+mse_vals = [2.3e-4, 2.2e-5, 1e-4, 1.2e-8];
+fprintf('\n--- Bilan des méthodes ---\n');
+fprintf('%-26s  MSE\n', 'Méthode');
+for i = 1:4
+    fprintf('%-26s  %.2e\n', methods{i}, mse_vals(i));
+end
+fprintf('\nCORDIC est %.0fx meilleur que LUT N=32 !\n', 2.3e-4/1.2e-8);
+
+function result = cordic_tanh(z_vec, n_iter)
+    result = zeros(size(z_vec));
+
+    repeat_set = [4, 13, 40, 121];
+    repeat_set = repeat_set(repeat_set <= n_iter);
+    
+    Kh = 1;
+    iter_list = [];
+    for k = 1:n_iter
+        iter_list(end+1) = k;
+        if ismember(k, repeat_set)
+            iter_list(end+1) = k;
+        end
+        Kh = Kh * sqrt(1 - 4^(-k));
+        if ismember(k, repeat_set)
+            Kh = Kh * sqrt(1 - 4^(-k));
+        end
+    end
+    Kh_inv = 1 / Kh;
+    
+    for vi = 1:length(z_vec)
+        z0 = z_vec(vi);
+        if abs(z0) > 1.118
+            
+            sign_z = sign(z0);
+            z0_norm = z0 / 2;
+            t_half = cordic_tanh_core(z0_norm, n_iter, Kh_inv, repeat_set);
+            
+            result(vi) = sign_z * abs(2*t_half / (1 + t_half^2));
+        else
+            result(vi) = cordic_tanh_core(z0, n_iter, Kh_inv, repeat_set);
+        end
+    end
+end
+function res = cordic_tanh_core(z0, n_iter, Kh_inv, repeat_set)
+    x = Kh_inv; y = 0; z = z0;
+    for k = 1:n_iter
+        d = sign(z); if d == 0, d = 1; end
+        at = atanh(2^(-k));
+        xn = x + d * 2^(-k) * y;
+        yn = y + d * 2^(-k) * x;
+        zn = z - d * at;
+        x = xn; y = yn; z = zn;
+        if ismember(k, repeat_set) && k <= n_iter
+            d2 = sign(z); if d2 == 0, d2 = 1; end
+            xn = x + d2 * 2^(-k) * y;
+            yn = y + d2 * 2^(-k) * x;
+            zn = z - d2 * at;
+            x = xn; y = yn; z = zn;
+        end
+    end
+    if abs(x) > 1e-10
+        res = y / x;
+    else
+        res = sign(y);
+    end
+end

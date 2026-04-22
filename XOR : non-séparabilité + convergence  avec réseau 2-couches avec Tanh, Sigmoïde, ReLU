@@ -1,0 +1,84 @@
+
+X_xor = [0 0; 0 1; 1 0; 1 1];
+T_xor = [0;   1;   1;   0];
+
+rng(42);  
+
+[mse_sig, mse_tanh, mse_relu, preds] = train_xor_networks(X_xor, T_xor);
+
+mse_sig(mse_sig <= 0) = eps;
+mse_tanh(mse_tanh <= 0) = eps;
+mse_relu(mse_relu <= 0) = eps;
+
+figure('Name','S5 - XOR convergence','NumberTitle','off','Color','w');
+
+subplot(1,2,1);
+ep_sig  = find(mse_sig  < 0.005, 1);
+ep_tanh = find(mse_tanh < 0.005, 1);
+ep_relu = find(mse_relu < 0.005, 1);
+
+semilogy(mse_sig,  'r-', 'LineWidth',2, 'DisplayName', sprintf('Sigmoïde (%s)', n2s(ep_sig))); hold on;
+semilogy(mse_tanh, 'b-', 'LineWidth',2, 'DisplayName', sprintf('Tanh (%s)', n2s(ep_tanh)));
+semilogy(mse_relu, 'g-', 'LineWidth',2, 'DisplayName', sprintf('ReLU (%s)', n2s(ep_relu)));
+
+yline(0.005,'k--','Seuil 0.005','LineWidth',1.5,'LabelVerticalAlignment','bottom');
+xlabel('Époque'); ylabel('MSE (log)');
+title('Convergence XOR');
+legend('Location','northeast');
+grid on;
+
+subplot(1,2,2);
+bar_data = [fix_nan(ep_sig), fix_nan(ep_tanh), fix_nan(ep_relu)];
+b = bar(bar_data, 0.5);
+b.FaceColor = 'flat';
+b.CData = [1 0.2 0.2; 0 0.4 0.9; 0.1 0.7 0.2];
+set(gca, 'XTickLabel', {'Sigmoïde','Tanh','ReLU'});
+ylabel('Époques'); title('Vitesse de convergence');
+grid on;
+
+sgtitle('Comparaison des fonctions d''activation (XOR)');
+
+fprintf('\n--- Résultats XOR (Dernière config) ---\n');
+fprintf('x1  x2  Cible  Prédiction  Correct?\n');
+for i = 1:4
+    ok = abs(preds(i) - T_xor(i)) < 0.2;
+    status = 'NON'; if ok, status = 'Oui'; end
+    fprintf(' %d   %d    %d      %.4f       %s\n', X_xor(i,1), X_xor(i,2), T_xor(i), preds(i), status);
+end
+
+
+function s = n2s(v), if isempty(v), s = 'Nan'; else, s = num2str(v); end, end
+function v = fix_nan(v), if isempty(v), v = 0; end, end
+
+function [m_sig, m_tanh, m_relu, p_relu] = train_xor_networks(X, T)
+    epochs = 3000; lr = 0.2; h = 4;
+    [m_sig, ~] = run_bp(X, T, 'sig', h, epochs, lr);
+    [m_tanh, ~] = run_bp(X, T, 'tanh', h, epochs, lr);
+    [m_relu, p_relu] = run_bp(X, T, 'relu', h, epochs, lr);
+end
+
+function [mse_hist, preds] = run_bp(X, T, act, h, epochs, lr)
+    [N, in] = size(X);
+    W1 = randn(in, h); B1 = zeros(1, h);
+    W2 = randn(h, 1);  B2 = zeros(1, 1);
+    mse_hist = zeros(epochs, 1);
+    
+    for e = 1:epochs
+        if strcmp(act,'sig'), f=@(x) 1./(1+exp(-x)); df=@(fx) fx.*(1-fx);
+        elseif strcmp(act,'tanh'), f=@(x) tanh(x); df=@(fx) 1-fx.^2;
+        else, f=@(x) max(0,x); df=@(fx) double(fx>0); end
+        
+        z1 = X*W1 + B1; a1 = f(z1);
+        z2 = a1*W2 + B2; a2 = 1./(1+exp(-z2)); % Sortie toujours sigmoïde pour [0,1]
+        
+        err = T - a2;
+        mse_hist(e) = mean(err.^2);
+        
+        d2 = err .* (a2.*(1-a2));
+        d1 = (d2 * W2') .* df(a1);
+        
+        W2 = W2 + lr * a1' * d2; B2 = B2 + lr * sum(d2);
+        W1 = W1 + lr * X' * d1;  B1 = B1 + lr * sum(d1);
+    end
+    preds = a2;
+end

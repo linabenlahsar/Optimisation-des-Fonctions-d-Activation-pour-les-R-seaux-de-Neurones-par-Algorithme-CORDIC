@@ -1,0 +1,36 @@
+figure('Name','S7 - Taylor','NumberTitle','off');
+
+x = linspace(-4, 4, 600);
+f_exact = tanh(x);
+
+
+P1 = x;
+P3 = x - x.^3/3;
+P5 = x - x.^3/3 + 2*x.^5/15;
+P7 = x - x.^3/3 + 2*x.^5/15 - 17*x.^7/315;
+
+subplot(1,2,1);
+plot(x, f_exact, 'k-',  'LineWidth',3,'DisplayName','tanh(x) exact'); hold on;
+plot(x, P1,      'r-',  'LineWidth',1.8,'DisplayName','P_1 = x');
+plot(x, P3,      'b--', 'LineWidth',1.8,'DisplayName','P_3');
+plot(x, P5,      'g-.', 'LineWidth',1.8,'DisplayName','P_5');
+plot(x, P7,      'm:',  'LineWidth',2,  'DisplayName','P_7');
+xlim([-4,4]); ylim([-3,3]);
+xline([-1.118 1.118],'k:','LineWidth',1.5);
+xlabel('x','FontSize',10); ylabel('y','FontSize',10);
+title('Développements de Taylor de tanh(x)');
+legend('Location','northwest','FontSize',8); grid on;
+text(1.3, -2.5, '← Domaine CORDIC', 'FontSize', 9, 'Color', 'k');
+
+subplot(1,2,2);
+err3 = abs(f_exact - P3); err5 = abs(f_exact - P5); err7 = abs(f_exact - P7);
+semilogy(x, err3, 'b-', 'LineWidth',2,'DisplayName','Erreur P_3'); hold on;
+semilogy(x, err5, 'g-', 'LineWidth',2,'DisplayName','Erreur P_5');
+semilogy(x, err7, 'm-', 'LineWidth',2,'DisplayName','Erreur P_7');
+yline(1e-3,'k--','Seuil 10^{-3}','LineWidth',1.5,'LabelVerticalAlignment','bottom');
+xlim([-4,4]); ylim([1e-8, 100]);
+xlabel('x','FontSize',13); ylabel('|Erreur| (log)','FontSize',13);
+title('Erreur des approximations');
+legend('FontSize',8); grid on;
+
+sgtitle('Développement de Taylor — Limites','FontSize',12,'FontWeight','bold');

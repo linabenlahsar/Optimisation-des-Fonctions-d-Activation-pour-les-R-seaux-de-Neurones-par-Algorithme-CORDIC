@@ -1,0 +1,153 @@
+figure('Name','S9 - CORDIC circulaire','NumberTitle','off');
+
+angles_test = linspace(-pi/4, pi/4, 100);
+cos_cordic  = zeros(size(angles_test));
+sin_cordic  = zeros(size(angles_test));
+cos_exact   = cos(angles_test);
+sin_exact   = sin(angles_test);
+
+for i = 1:length(angles_test)
+    [cos_cordic(i), sin_cordic(i)] = cordic_circular(angles_test(i), 20);
+end
+
+subplot(1,2,1);
+plot(angles_test, cos_exact,  'k-',  'LineWidth',2.5,'DisplayName','cos exact'); hold on;
+plot(angles_test, cos_cordic, 'b--', 'LineWidth',2,  'DisplayName','CORDIC cos');
+plot(angles_test, sin_exact,  'k-.',  'LineWidth',2.5,'DisplayName','sin exact');
+plot(angles_test, sin_cordic, 'r--', 'LineWidth',2,  'DisplayName','CORDIC sin');
+xlabel('Angle z_0 (rad)','FontSize',10);
+ylabel('Valeur','FontSize',10);
+title('CORDIC circulaire : sin et cos','FontSize',10);
+legend('FontSize',10,'Location','best'); grid on;
+
+subplot(1,2,2);
+err_cos = abs(cos_exact - cos_cordic);
+err_sin = abs(sin_exact - sin_cordic);
+semilogy(angles_test, err_cos+1e-18, 'b-', 'LineWidth',2,'DisplayName','Erreur cos'); hold on;
+semilogy(angles_test, err_sin+1e-18, 'r-', 'LineWidth',2,'DisplayName','Erreur sin');
+xlabel('Angle (rad)','FontSize',12);
+ylabel('Erreur absolue (log)','FontSize',10);
+title(sprintf('Précision CORDIC circulaire k=20\nMSE cos=%.2e', mean(err_cos.^2)),'FontSize',10);
+legend('FontSize',10); grid on;
+
+sgtitle('CORDIC Circulaire (m=+1) — sin et cos','FontSize',14,'FontWeight','bold');
+
+
+
+figure('Name','S10 - CORDIC hyperbolique','NumberTitle','off');
+
+x_hyp = linspace(-2, 2, 200);
+tanh_exact  = tanh(x_hyp);
+sigma_exact = 1 ./ (1 + exp(-x_hyp));
+
+tanh_cordic  = cordic_tanh(x_hyp, 16);
+sigma_cordic = (1 + cordic_tanh(x_hyp/2, 16)) / 2;
+
+subplot(2,2,1);
+plot(x_hyp, tanh_exact,  'k-',  'LineWidth',2.5,'DisplayName','tanh exact'); hold on;
+plot(x_hyp, tanh_cordic, 'b--', 'LineWidth',2,  'DisplayName','CORDIC k=16');
+xlabel('x','FontSize',12); ylabel('tanh(x)','FontSize',10);
+title('CORDIC hyperbolique : tanh(x)','FontSize',10);
+legend('FontSize',10,'Location','southeast'); grid on;
+
+subplot(2,2,2);
+plot(x_hyp, sigma_exact,  'k-',  'LineWidth',2.5,'DisplayName','σ exact'); hold on;
+plot(x_hyp, sigma_cordic, 'r--', 'LineWidth',2,  'DisplayName','CORDIC k=16');
+xlabel('x','FontSize',12); ylabel('σ(x)','FontSize',10);
+title('CORDIC hyperbolique : σ(x)','FontSize',10);
+legend('FontSize',10,'Location','southeast'); grid on;
+
+subplot(2,2,3);
+err_t = abs(tanh_exact - tanh_cordic);
+plot(x_hyp, err_t, 'b-', 'LineWidth',2);
+xlabel('x','FontSize',12); ylabel('Erreur absolue','FontSize',12);
+title(sprintf('Erreur tanh CORDIC')); grid on;
+
+subplot(2,2,4);
+err_s = abs(sigma_exact - sigma_cordic);
+plot(x_hyp, err_s, 'r-', 'LineWidth',2);
+xlabel('x','FontSize',12); ylabel('Erreur absolue','FontSize',12);
+title(sprintf('Erreur σ CORDIC')); grid on;
+
+sgtitle('CORDIC Hyperbolique (m=−1) — tanh et σ','FontSize',12,'FontWeight','bold');
+
+mse_tanh_c  = mean(err_t.^2);
+mse_sigma_c = mean(err_s.^2);
+fprintf('\n--- CORDIC hyperbolique k=16 ---\n');
+fprintf('MSE tanh  : %.4e\n', mse_tanh_c);
+fprintf('MSE sigma : %.4e\n', mse_sigma_c);
+
+
+
+function [cx, sy] = cordic_circular(z0, n_iter)
+    Kc = prod(1 ./ sqrt(1 + 2.^(-2*(0:n_iter-1))));
+    x = Kc; y = 0; z = z0;
+    for k = 0:n_iter-1
+        d = sign(z); if d == 0, d = 1; end
+        xn = x - d * 2^(-k) * y;
+        yn = y + d * 2^(-k) * x;
+        zn = z - d * atan(2^(-k));
+        x = xn; y = yn; z = zn;
+    end
+    cx = x; sy = y;
+end
+
+
+function result = cordic_tanh(z_vec, n_iter)
+    result = zeros(size(z_vec));
+  
+    repeat_set = [4, 13, 40, 121];
+    repeat_set = repeat_set(repeat_set <= n_iter);
+    
+    Kh = 1;
+    iter_list = [];
+    for k = 1:n_iter
+        iter_list(end+1) = k;
+        if ismember(k, repeat_set)
+            iter_list(end+1) = k;
+        end
+        Kh = Kh * sqrt(1 - 4^(-k));
+        if ismember(k, repeat_set)
+            Kh = Kh * sqrt(1 - 4^(-k));
+        end
+    end
+    Kh_inv = 1 / Kh;
+    
+    for vi = 1:length(z_vec)
+        z0 = z_vec(vi);
+        if abs(z0) > 1.118
+            
+            sign_z = sign(z0);
+            z0_norm = z0 / 2;
+            t_half = cordic_tanh_core(z0_norm, n_iter, Kh_inv, repeat_set);
+            
+            result(vi) = sign_z * abs(2*t_half / (1 + t_half^2));
+        else
+            result(vi) = cordic_tanh_core(z0, n_iter, Kh_inv, repeat_set);
+        end
+    end
+end
+
+function res = cordic_tanh_core(z0, n_iter, Kh_inv, repeat_set)
+    x = Kh_inv; y = 0; z = z0;
+    for k = 1:n_iter
+        d = sign(z); if d == 0, d = 1; end
+        at = atanh(2^(-k));
+        xn = x + d * 2^(-k) * y;
+        yn = y + d * 2^(-k) * x;
+        zn = z - d * at;
+        x = xn; y = yn; z = zn;
+        if ismember(k, repeat_set) && k <= n_iter
+            d2 = sign(z); if d2 == 0, d2 = 1; end
+            xn = x + d2 * 2^(-k) * y;
+            yn = y + d2 * 2^(-k) * x;
+            zn = z - d2 * at;
+            x = xn; y = yn; z = zn;
+        end
+    end
+    if abs(x) > 1e-10
+        res = y / x;
+    else
+        res = sign(y);
+    end
+end

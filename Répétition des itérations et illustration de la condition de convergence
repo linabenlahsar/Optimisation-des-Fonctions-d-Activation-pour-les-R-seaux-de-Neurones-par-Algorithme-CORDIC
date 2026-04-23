@@ -1,0 +1,119 @@
+figure('Name','S11 - Répétition itérations','NumberTitle','off');
+
+k_vals = 1:20;
+atanh_k = atanh(2.^(-k_vals));
+cumsum_atanh = cumsum(atanh_k);
+
+% Itérations à répéter (séquence k_{i+1} = 3k_i + 1)
+repeat_iters = [4, 13, 40];  % jusqu'à k=20
+
+subplot(1,2,1);
+stem(k_vals, atanh_k, 'b', 'LineWidth',2,'MarkerFaceColor','b'); hold on;
+stem(k_vals, cumsum_atanh, 'r--', 'LineWidth',1.5,'MarkerFaceColor','r');
+for ri = repeat_iters(repeat_iters <= 20)
+    xline(ri,'g--','LineWidth',2);
+end
+xlabel('Indice k','FontSize',12);
+ylabel('Valeur','FontSize',12);
+title({'atanh(2^{-k}) et somme cumulée','(lignes vertes = itérations répétées)'},'FontSize',12);
+legend({'atanh(2^{-k})','Somme cumulée','Répétitions'},'FontSize',10,'Location','northeast');
+grid on;
+
+subplot(1,2,2);
+% Simulation : erreur résiduelle avec et sans répétitions
+z0_test = 0.9;  % angle proche de la limite
+k_max = 18;
+err_no_rep = zeros(1, k_max);
+err_with_rep = zeros(1, k_max);
+
+for k = 1:k_max
+    t1 = cordic_tanh_no_repeat(z0_test, k);
+    t2 = cordic_tanh(z0_test, k);
+    err_no_rep(k)   = abs(tanh(z0_test) - t1);
+    err_with_rep(k) = abs(tanh(z0_test) - t2);
+end
+
+semilogy(1:k_max, err_no_rep,   'r-o', 'LineWidth',2,'MarkerSize',5, ...
+         'DisplayName','Sans répétition'); hold on;
+semilogy(1:k_max, err_with_rep, 'b-s', 'LineWidth',2,'MarkerSize',5, ...
+         'DisplayName','Avec répétition');
+xline(4,  'g--','k=4',  'LineWidth',1.5,'LabelVerticalAlignment','bottom');
+xline(13, 'g--','k=13', 'LineWidth',1.5,'LabelVerticalAlignment','bottom');
+xlabel('Itérations k','FontSize',12); ylabel('Erreur absolue (log)','FontSize',12);
+title(sprintf('Impact des répétitions (z_0=%.1f)', z0_test),'FontSize',12);
+legend('FontSize',11,'Location','southwest'); grid on;
+
+sgtitle('Pourquoi répéter certaines itérations ?','FontSize',14,'FontWeight','bold');
+function result = cordic_tanh_no_repeat(z0, n_iter)
+    Kh_inv = 1;
+    for k = 1:n_iter
+        Kh_inv = Kh_inv * sqrt(1 - 4^(-k));
+    end
+    Kh_inv = 1 / Kh_inv;
+    x = Kh_inv; y = 0; z = z0;
+    for k = 1:n_iter
+        d = sign(z); if d == 0, d = 1; end
+        xn = x + d * 2^(-k) * y;
+        yn = y + d * 2^(-k) * x;
+        zn = z - d * atanh(2^(-k));
+        x = xn; y = yn; z = zn;
+    end
+    if abs(x) > 1e-10, result = y / x; else, result = sign(y); end
+end
+function result = cordic_tanh(z_vec, n_iter)
+    result = zeros(size(z_vec));
+    % Itérations à répéter
+    repeat_set = [4, 13, 40, 121];
+    repeat_set = repeat_set(repeat_set <= n_iter);
+    
+    Kh = 1;
+    iter_list = [];
+    for k = 1:n_iter
+        iter_list(end+1) = k; %#ok
+        if ismember(k, repeat_set)
+            iter_list(end+1) = k; %#ok
+        end
+        Kh = Kh * sqrt(1 - 4^(-k));
+        if ismember(k, repeat_set)
+            Kh = Kh * sqrt(1 - 4^(-k));
+        end
+    end
+    Kh_inv = 1 / Kh;
+    
+    for vi = 1:length(z_vec)
+        z0 = z_vec(vi);
+        if abs(z0) > 1.118
+            % Normalisation pour |z0| > domaine CORDIC
+            sign_z = sign(z0);
+            z0_norm = z0 / 2;
+            t_half = cordic_tanh_core(z0_norm, n_iter, Kh_inv, repeat_set);
+            % tanh(2x) = 2tanh(x)/(1+tanh(x)^2)
+            result(vi) = sign_z * abs(2*t_half / (1 + t_half^2));
+        else
+            result(vi) = cordic_tanh_core(z0, n_iter, Kh_inv, repeat_set);
+        end
+    end
+end
+function res = cordic_tanh_core(z0, n_iter, Kh_inv, repeat_set)
+    x = Kh_inv; y = 0; z = z0;
+    for k = 1:n_iter
+        d = sign(z); if d == 0, d = 1; end
+        at = atanh(2^(-k));
+        xn = x + d * 2^(-k) * y;
+        yn = y + d * 2^(-k) * x;
+        zn = z - d * at;
+        x = xn; y = yn; z = zn;
+        if ismember(k, repeat_set) && k <= n_iter
+            d2 = sign(z); if d2 == 0, d2 = 1; end
+            xn = x + d2 * 2^(-k) * y;
+            yn = y + d2 * 2^(-k) * x;
+            zn = z - d2 * at;
+            x = xn; y = yn; z = zn;
+        end
+    end
+    if abs(x) > 1e-10
+        res = y / x;
+    else
+        res = sign(y);
+    end
+end

@@ -1,0 +1,117 @@
+figure('Name','S15 - ET logique','NumberTitle','off');
+
+X_and = [0 0; 0 1; 1 0; 1 1];
+T_and = [0;   0;   0;   1  ];
+
+[mse_and_sig, mse_and_tanh, mse_and_relu, ~] = train_and_networks(X_and, T_and);
+
+subplot(1,2,1);
+semilogy(mse_and_sig,  'r-', 'LineWidth',2,'DisplayName', ...
+    sprintf('Sigmoïde (%d ép.)', find(mse_and_sig<1e-4,1))); hold on;
+semilogy(mse_and_tanh, 'b-', 'LineWidth',2,'DisplayName', ...
+    sprintf('Tanh (%d ép.)',     find(mse_and_tanh<1e-4,1)));
+semilogy(mse_and_relu, 'g-', 'LineWidth',2,'DisplayName', ...
+    sprintf('ReLU (%d ép.)',     find(mse_and_relu<1e-4,1)));
+yline(1e-4,'k--','Seuil','LineWidth',1.5,'LabelVerticalAlignment','bottom');
+xlabel('Époque','FontSize',13); ylabel('MSE (log)','FontSize',13);
+title('Convergence ET logique','FontSize',13);
+legend('FontSize',11,'Location','northeast'); grid on;
+xlim([0, 500]);
+
+subplot(1,2,2);
+% Frontière de décision apprise (Tanh)
+[w1_and, w2_and, b_and] = train_and_weights(X_and, T_and);
+xx = linspace(-0.2, 1.2, 100);
+boundary = -(w1_and*xx + b_and) / w2_and;
+
+scatter(X_and(T_and==0,1), X_and(T_and==0,2), 120, 'r', 'filled', ...
+        'DisplayName','Classe 0'); hold on;
+scatter(X_and(T_and==1,1), X_and(T_and==1,2), 120, 'g', 'filled', ...
+        'DisplayName','Classe 1');
+plot(xx, boundary, 'b-', 'LineWidth',2.5,'DisplayName','Frontière (Tanh)');
+xlim([-0.3,1.3]); ylim([-0.3,1.3]);
+xlabel('x_1','FontSize',13); ylabel('x_2','FontSize',13);
+title('Frontière de décision — ET logique','FontSize',13);
+legend('FontSize',11,'Location','northeast'); grid on;
+
+sgtitle('ET logique — Baseline de convergence','FontSize',14,'FontWeight','bold');
+function [mse_sig, mse_tanh, mse_relu, preds_tanh] = train_and_networks(X, T)
+n_epochs = 1000; eta = 0.5; n_hidden = 3;
+[mse_sig,  ~]          = train_nn(X, T, n_epochs, eta, n_hidden, 'sigmoid');
+[mse_tanh, preds_tanh] = train_nn(X, T, n_epochs, eta, n_hidden, 'tanh');
+[mse_relu, ~]          = train_nn(X, T, n_epochs, eta, n_hidden, 'relu');
+end
+function [mse_hist, preds] = train_nn(X, T, n_epochs, eta, n_hidden, act)
+rng(1);
+n_in = size(X, 2);
+W1 = randn(n_in, n_hidden) * 0.5;
+b1 = zeros(1, n_hidden);
+W2 = randn(n_hidden, 1) * 0.5;
+b2 = 0;
+mse_hist = zeros(1, n_epochs);
+
+for ep = 1:n_epochs
+    idx = randperm(size(X,1));
+    total_err = 0;
+    for i = 1:length(idx)
+        xi = X(idx(i),:);
+        ti = T(idx(i));
+        z1 = xi * W1 + b1;
+        a1 = act_fn(z1, act);
+        z2 = a1 * W2 + b2;
+        y  = act_fn(z2, act);
+        e  = y - ti;
+        total_err = total_err + 0.5*e^2;
+        d2 = e .* act_deriv(z2, act);
+        d1 = (d2 * W2') .* act_deriv(z1, act);
+        W2 = W2 - eta * a1' * d2;
+        b2 = b2 - eta * d2;
+        W1 = W1 - eta * xi' * d1;
+        b1 = b1 - eta * d1;
+    end
+    mse_hist(ep) = total_err / size(X,1);
+end
+preds = zeros(size(T));
+    for i = 1:size(X,1)
+        z1 = X(i,:) * W1 + b1;
+        a1 = act_fn(z1, act);
+        z2 = a1 * W2 + b2;
+        preds(i) = act_fn(z2, act);
+    end
+end
+function y = act_fn(z, act)
+switch act
+    case 'sigmoid', y = 1 ./ (1 + exp(-z));
+    case 'tanh',    y = tanh(z);
+    case 'relu',    y = max(0, z);
+end
+end
+
+function dy = act_deriv(z, act)
+switch act
+    case 'sigmoid'
+        s = 1 ./ (1 + exp(-z));
+        dy = s .* (1 - s);
+    case 'tanh'
+        dy = 1 - tanh(z).^2;
+    case 'relu'
+        dy = double(z > 0);
+end
+end
+
+function [w1, w2, b] = train_and_weights(X, T)
+rng(1);
+w1 = randn(); w2 = randn(); b = randn();
+eta = 0.3;
+for ep = 1:2000
+    for i = 1:size(X,1)
+        z = w1*X(i,1) + w2*X(i,2) + b;
+        y = tanh(z);
+        e = y - T(i);
+        d = e * (1 - y^2);
+        w1 = w1 - eta * d * X(i,1);
+        w2 = w2 - eta * d * X(i,2);
+        b  = b  - eta * d;
+    end
+end
+end

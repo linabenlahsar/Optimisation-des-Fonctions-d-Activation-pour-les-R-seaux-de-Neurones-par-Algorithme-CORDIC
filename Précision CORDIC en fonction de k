@@ -1,0 +1,111 @@
+figure('Name','S13 - Précision vs itérations','NumberTitle','off');
+
+k_range = 4:2:22;
+x_test  = linspace(-2, 2, 500);
+mse_cordic_k = zeros(size(k_range));
+maxerr_k     = zeros(size(k_range));
+
+for idx = 1:length(k_range)
+    k = k_range(idx);
+    f_c = cordic_tanh(x_test, k);
+    f_r = tanh(x_test);
+    mse_cordic_k(idx) = mean((f_c - f_r).^2);
+    maxerr_k(idx)     = max(abs(f_c - f_r));
+end
+
+subplot(1,2,1);
+semilogy(k_range, mse_cordic_k, 'b-o', 'LineWidth',2.5, ...
+         'MarkerSize',8,'MarkerFaceColor','b'); hold on;
+semilogy(k_range, maxerr_k,     'r-s', 'LineWidth',2.5, ...
+         'MarkerSize',8,'MarkerFaceColor','r');
+yline(3e-5, 'g--', 'Résolution 16 bits (3×10^{-5})', 'LineWidth',2, ...
+      'LabelVerticalAlignment','bottom','FontSize',9);
+xline(16, 'k--', 'k=16 choisi', 'LineWidth',2, ...
+      'LabelVerticalAlignment','bottom','FontSize',10);
+xlabel('Nombre d''itérations k','FontSize',13);
+ylabel('Erreur (log)','FontSize',13);
+title('Précision CORDIC vs nombre d''itérations','FontSize',13);
+legend({'MSE','Erreur max','Résolution 16 bits','k=16'},'FontSize',10,'Location','southwest');
+grid on;
+
+subplot(1,2,2);
+% Erreur spatiale pour différents k
+colors_k = {'r','b','g','k'};
+k_show = [8, 12, 16, 20];
+x_vis = linspace(-2.5, 2.5, 400);
+for idx2 = 1:4
+    f_c = cordic_tanh(x_vis, k_show(idx2));
+    err_abs = abs(tanh(x_vis) - f_c);
+    semilogy(x_vis, err_abs + 1e-12, [colors_k{idx2} '-'], ...
+             'LineWidth', 1.8, 'DisplayName', sprintf('k=%d', k_show(idx2)));
+    hold on;
+end
+yline(3e-5,'k--','16 bits','LineWidth',2,'FontSize',9);
+xlabel('x','FontSize',13); ylabel('Erreur absolue (log)','FontSize',13);
+title('Erreur spatiale CORDIC pour différents k','FontSize',13);
+legend('FontSize',11,'Location','southwest'); grid on;
+
+sgtitle('Étude de la précision CORDIC en fonction de k','FontSize',14,'FontWeight','bold');
+
+fprintf('\n--- Précision CORDIC ---\n');
+fprintf('k    MSE           Erreur max\n');
+for idx = 1:length(k_range)
+    fprintf('%-4d %.4e  %.4e\n', k_range(idx), mse_cordic_k(idx), maxerr_k(idx));
+end
+function result = cordic_tanh(z_vec, n_iter)
+result = zeros(size(z_vec));
+% Itérations à répéter
+repeat_set = [4, 13, 40, 121];
+repeat_set = repeat_set(repeat_set <= n_iter);
+
+Kh = 1;
+iter_list = [];
+for k = 1:n_iter
+    iter_list(end+1) = k; %#ok
+    if ismember(k, repeat_set)
+        iter_list(end+1) = k; %#ok
+    end
+    Kh = Kh * sqrt(1 - 4^(-k));
+    if ismember(k, repeat_set)
+        Kh = Kh * sqrt(1 - 4^(-k));
+    end
+end
+Kh_inv = 1 / Kh;
+
+for vi = 1:length(z_vec)
+    z0 = z_vec(vi);
+    if abs(z0) > 1.118
+        % Normalisation pour |z0| > domaine CORDIC
+        sign_z = sign(z0);
+        z0_norm = z0 / 2;
+        t_half = cordic_tanh_core(z0_norm, n_iter, Kh_inv, repeat_set);
+        % tanh(2x) = 2tanh(x)/(1+tanh(x)^2)
+        result(vi) = sign_z * abs(2*t_half / (1 + t_half^2));
+    else
+        result(vi) = cordic_tanh_core(z0, n_iter, Kh_inv, repeat_set);
+    end
+end
+end
+function res = cordic_tanh_core(z0, n_iter, Kh_inv, repeat_set)
+x = Kh_inv; y = 0; z = z0;
+for k = 1:n_iter
+    d = sign(z); if d == 0, d = 1; end
+    at = atanh(2^(-k));
+    xn = x + d * 2^(-k) * y;
+    yn = y + d * 2^(-k) * x;
+    zn = z - d * at;
+    x = xn; y = yn; z = zn;
+    if ismember(k, repeat_set) && k <= n_iter
+        d2 = sign(z); if d2 == 0, d2 = 1; end
+        xn = x + d2 * 2^(-k) * y;
+        yn = y + d2 * 2^(-k) * x;
+        zn = z - d2 * at;
+        x = xn; y = yn; z = zn;
+    end
+end
+if abs(x) > 1e-10
+    res = y / x;
+else
+    res = sign(y);
+end
+end

@@ -1,0 +1,133 @@
+% =========================================================
+% Approximation de tanh(x) par LUT (sans interpolation)
+% Comparaison pour diffÃ©rentes tailles de mÃ©moire
+% =========================================================
+
+clear; close all; clc;
+
+%% ParamÃ¨tres
+xmin = -8;
+xmax = 8;
+
+% Axe de test
+x = linspace(xmin, xmax, 5000);
+
+% Fonction exacte
+y_exact = tanh(x);
+
+% DiffÃ©rentes tailles de LUT
+N_values = [16 32 64 128 256];
+
+% Couleurs
+colors = lines(length(N_values));
+
+%% Figure
+figure('Color','k');
+
+%% ==============================
+% 1) Courbe tanh exacte vs LUT
+% ==============================
+subplot(2,1,1);
+hold on;
+grid on;
+
+set(gca,'Color',[0.1 0.1 0.1], ...
+        'XColor','w', ...
+        'YColor','w');
+
+title('tanh : Exacte vs LUT sans interpolation', ...
+      'Color','w','FontWeight','bold');
+
+xlabel('x','Color','w');
+ylabel('tanh(x)','Color','w');
+
+% Courbe exacte
+plot(x, y_exact, 'w', 'LineWidth', 2);
+
+legend_text = {'Exacte'};
+
+%% ==============================
+% Boucle LUT
+% ==============================
+for k = 1:length(N_values)
+
+    N = N_values(k);
+
+    % CrÃ©ation LUT
+    x_lut = linspace(xmin, xmax, N);
+    y_lut = tanh(x_lut);
+
+    % Approximation sans interpolation
+    y_approx = zeros(size(x));
+
+    for i = 1:length(x)
+
+        % Index du point LUT le plus proche
+        idx = round( (x(i)-xmin)/(xmax-xmin)*(N-1) ) + 1;
+
+        % Saturation index
+        idx = max(1, min(N, idx));
+
+        % Valeur LUT
+        y_approx(i) = y_lut(idx);
+    end
+
+    % MSE
+    mse = mean((y_exact - y_approx).^2);
+
+    % Affichage courbe
+    stairs(x, y_approx, ...
+        'Color', colors(k,:), ...
+        'LineWidth', 1.5);
+
+    legend_text{end+1} = sprintf('N = %d (MSE: %.2e)', N, mse);
+
+    % Sauvegarde erreur
+    ERR{k} = abs(y_exact - y_approx);
+
+end
+
+legend(legend_text, ...
+       'TextColor','w', ...
+       'Color','k', ...
+       'Location','northwest');
+
+xlim([xmin xmax]);
+ylim([-0.05 1.05]);
+
+%% ==============================
+% 2) Erreur absolue
+% ==============================
+subplot(2,1,2);
+hold on;
+grid on;
+
+set(gca,'Color',[0.1 0.1 0.1], ...
+        'XColor','w', ...
+        'YColor','w');
+
+title('Erreur absolue (Dents de scie)', ...
+      'Color','w','FontWeight','bold');
+
+xlabel('x','Color','w');
+ylabel('|Erreur|','Color','w');
+
+for k = 1:length(N_values)
+
+    plot(x, ERR{k}, ...
+        'Color', colors(k,:), ...
+        'LineWidth', 1.5);
+
+end
+
+legend( ...
+    arrayfun(@(n) sprintf('N = %d',n), ...
+    N_values, 'UniformOutput', false), ...
+    'TextColor','w', ...
+    'Color','k', ...
+    'Location','northeast');
+
+xlim([xmin xmax]);
+
+%% Style gÃ©nÃ©ral
+set(gcf,'Position',[100 100 900 700]);

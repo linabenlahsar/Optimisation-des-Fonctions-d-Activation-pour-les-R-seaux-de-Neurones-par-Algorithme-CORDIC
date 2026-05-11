@@ -1,0 +1,61 @@
+% Données factices pour imiter la courbe de convergence
+k = [1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20];
+err_sigma = [0.10, 0.055, 0.025, 0.010, 0.0040, 0.0015, 0.0005, 0.0001, 0, 0, 0];
+err_tanh  = [0.09, 0.050, 0.022, 0.009, 0.0035, 0.0010, 0.0003, 0.0001, 0, 0, 0];
+
+% Création de la figure en forçant le fond blanc
+figure('Color', 'w', 'Position', [100, 100, 750, 450]);
+hold on; grid on;
+
+% Définition des couleurs (Vert, Marron/Orange et Bleu Marine)
+color_green = [0.05, 0.55, 0.25];
+color_brown = [0.75, 0.35, 0.10];
+color_navy  = [0.00, 0.15, 0.40];
+
+% Tracé des courbes principales
+plot(k, err_sigma, '-o', 'Color', color_green, 'MarkerFaceColor', color_green, ...
+    'LineWidth', 1.5, 'MarkerSize', 8, 'DisplayName', '$\sigma(x)$');
+plot(k, err_tanh, '-s', 'Color', color_brown, 'MarkerFaceColor', color_brown, ...
+    'LineWidth', 1.5, 'MarkerSize', 8, 'DisplayName', '$\tanh(x)$');
+
+% Ligne horizontale en bas (marron pointillé)
+yline(0, '--', 'Color', color_brown, 'LineWidth', 2, 'HandleVisibility', 'off'); 
+
+% Ligne verticale k=16 (bleu marine)
+xline(16, '--', 'Color', color_navy, 'LineWidth', 1.5, 'HandleVisibility', 'off');
+
+% Texte aligné sur la ligne k=16
+text(16.3, 0.05, '$k = 16$ choisi', 'Color', color_navy, ...
+    'Interpreter', 'latex', 'Rotation', 90, 'HorizontalAlignment', 'center', ...
+    'VerticalAlignment', 'bottom', 'FontSize', 12);
+
+% Configuration des axes (pour forcer le fond clair/gris très pâle)
+ax = gca;
+ax.Color = [0.96 0.96 0.96]; % Fond de la zone de tracé gris très clair
+ax.Box = 'on';
+ax.GridColor = [0.5 0.5 0.5];
+ax.GridAlpha = 0.5;
+ax.TickLabelInterpreter = 'latex';
+ax.FontSize = 12;
+
+% Limites et graduations des axes
+xlim([0, 21]);
+ylim([-0.002, 0.115]); 
+xticks(2:2:20);
+yticks([0, 0.05, 0.1]);
+
+% Personnalisation des labels Y (LaTeX)
+yticklabels({'0', '$5 \cdot 10^{-2}$', '0.1'});
+
+% Labels et Titre
+xlabel('Nombre d''iterations $k$', 'Interpreter', 'latex', 'FontSize', 14);
+ylabel('Erreur max', 'Interpreter', 'latex', 'FontSize', 14);
+title('\textbf{Convergence CORDIC hyperbolique}', 'Interpreter', 'latex', ...
+    'Color', color_navy, 'FontSize', 15);
+
+% Configuration de la légende
+lgd = legend('show');
+set(lgd, 'Interpreter', 'latex', 'Location', 'northeast', ...
+    'FontSize', 12, 'Box', 'on', 'Color', 'w');
+
+hold off;

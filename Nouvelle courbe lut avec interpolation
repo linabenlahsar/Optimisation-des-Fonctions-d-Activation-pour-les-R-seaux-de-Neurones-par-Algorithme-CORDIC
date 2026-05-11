@@ -1,0 +1,155 @@
+% =========================================================
+% Approximation de tanh(x) par LUT AVEC interpolation linÃ©aire
+% Comparaison pour diffÃ©rentes tailles de mÃ©moire
+% =========================================================
+
+clear; close all; clc;
+
+%% ParamÃ¨tres
+xmin = -8;
+xmax = 8;
+
+% Axe de test
+x = linspace(xmin, xmax, 5000);
+
+% Fonction exacte
+y_exact = tanh(x);
+
+% DiffÃ©rentes tailles LUT
+N_values = [16 32 64 128 256];
+
+% Couleurs
+colors = lines(length(N_values));
+
+%% Figure
+figure('Color','k');
+
+%% =====================================================
+% 1) Courbe exacte vs LUT interpolÃ©e
+% =====================================================
+subplot(2,1,1);
+hold on;
+grid on;
+
+set(gca,'Color',[0.1 0.1 0.1], ...
+        'XColor','w', ...
+        'YColor','w');
+
+title('SigmoÃ¯de : Exacte (Blanc) vs LUT avec interpolation linÃ©aire', ...
+      'Color','w','FontWeight','bold');
+
+xlabel('x','Color','w');
+ylabel('\sigma(x)','Color','w');
+
+% Courbe exacte
+plot(x, y_exact, 'w', 'LineWidth', 2);
+
+legend_text = {'Exacte (\sigma)'};
+
+%% =====================================================
+% Boucle sur les tailles de LUT
+% =====================================================
+for k = 1:length(N_values)
+
+    N = N_values(k);
+
+    % LUT
+    x_lut = linspace(xmin, xmax, N);
+    y_lut = tanh(x_lut);
+
+    % Approximation interpolÃ©e
+    y_interp = zeros(size(x));
+
+    for i = 1:length(x)
+
+        xi = x(i);
+
+        % Saturation
+        if xi <= xmin
+            y_interp(i) = y_lut(1);
+
+        elseif xi >= xmax
+            y_interp(i) = y_lut(end);
+
+        else
+
+            % Position normalisÃ©e
+            pos = (xi - xmin)/(xmax - xmin)*(N-1);
+
+            % Indices voisins
+            idx1 = floor(pos) + 1;
+            idx2 = idx1 + 1;
+
+            % SÃ©curitÃ©
+            idx2 = min(idx2, N);
+
+            % Fraction interpolation
+            alpha = pos - floor(pos);
+
+            % Interpolation linÃ©aire
+            y_interp(i) = ...
+                (1-alpha)*y_lut(idx1) + ...
+                 alpha   *y_lut(idx2);
+        end
+    end
+
+    % MSE
+    mse = mean((y_exact - y_interp).^2);
+
+    % Affichage
+    plot(x, y_interp, ...
+        'Color', colors(k,:), ...
+        'LineWidth', 1.5);
+
+    legend_text{end+1} = ...
+        sprintf('N = %d (MSE: %.2e)', N, mse);
+
+    % Erreur absolue
+    ERR{k} = abs(y_exact - y_interp);
+
+end
+
+legend(legend_text, ...
+       'TextColor','w', ...
+       'Color','k', ...
+       'Location','northwest');
+
+xlim([xmin xmax]);
+ylim([-0.02 1.02]);
+
+%% =====================================================
+% 2) Erreur absolue
+% =====================================================
+subplot(2,1,2);
+hold on;
+grid on;
+
+set(gca,'Color',[0.1 0.1 0.1], ...
+        'XColor','w', ...
+        'YColor','w');
+
+title('Erreur absolue (Lissage par interpolation)', ...
+      'Color','w','FontWeight','bold');
+
+xlabel('x','Color','w');
+ylabel('|Erreur|','Color','w');
+
+for k = 1:length(N_values)
+
+    plot(x, ERR{k}, ...
+        'Color', colors(k,:), ...
+        'LineWidth', 1.5);
+
+end
+
+legend( ...
+    arrayfun(@(n) sprintf('N = %d',n), ...
+    N_values, 'UniformOutput', false), ...
+    'TextColor','w', ...
+    'Color','k', ...
+    'Location','northeast');
+
+xlim([xmin xmax]);
+
+%% Taille fenÃªtre
+set(gcf,'Position',[100 100 900 700]);

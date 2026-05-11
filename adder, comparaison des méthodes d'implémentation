@@ -1,0 +1,80 @@
+% =========================================================================
+% Visualisation de la convergence MSE : Impact matériel sur l'apprentissage
+% Modèle : Full Adder (Réseau de neurones)
+% Activations : Tanh via CORDIC, LUT, Taylor
+% =========================================================================
+
+clear; clc; close all;
+
+%% 1. Paramètres de simulation
+epochs = 500; % Nombre d'époques
+x_epochs = 1:epochs;
+
+% Définition d'une courbe de convergence idéale de base (exponentielle décroissante)
+base_convergence = 0.5 * exp(-x_epochs / 80) + 1e-4; 
+
+%% 2. Génération des données simulées par méthode
+
+% A. CORDIC (Précision Parfaite)
+% Le CORDIC a une précision très fine (ex: 10^-5), il suit la courbe idéale.
+% On ajoute juste un très léger bruit d'apprentissage normal.
+noise_cordic = randn(1, epochs) * 1e-5;
+mse_cordic = base_convergence + noise_cordic;
+mse_cordic(mse_cordic < 1e-5) = 1e-5; % Plancher naturel du réseau
+
+% B. LUT (Plancher d'erreur / Quantification)
+% La LUT discrétise les valeurs. Elle converge au début, mais frappe un 
+% "mur" (plateau) causé par l'erreur de quantification (ex: ~10^-3).
+lut_plateau = 5e-3;
+mse_lut = base_convergence;
+% Effet de saturation au niveau du plateau avec un peu de bruit
+mse_lut(mse_lut < lut_plateau) = lut_plateau + randn(1, sum(mse_lut < lut_plateau)) * (lut_plateau/10);
+
+% C. Taylor (Instabilité / Divergence)
+% Taylor converge bien au début (quand les poids sont petits), mais au fur
+% et à mesure de l'apprentissage, les valeurs Z augmentent. Taylor diverge 
+% hors de [-1, 1], causant des "pics" (spikes) d'erreur énormes.
+mse_taylor = base_convergence;
+for i = 50:epochs
+    % Probabilité croissante d'instabilité
+    if rand() < (i / epochs) * 0.15 
+        % Un pic d'erreur soudain (explosion du gradient due à Taylor)
+        mse_taylor(i) = mse_taylor(i) * (10 + rand() * 100); 
+    end
+end
+% On lisse légèrement pour l'aspect visuel de l'apprentissage avec momentum
+mse_taylor = smoothdata(mse_taylor, 'movmean', 5);
+
+%% 3. Tracé du graphique
+figure('Name', 'Convergence MSE (Matériel)', 'Position', [100, 100, 900, 500], 'Color', 'w');
+
+% Tracé en échelle logarithmique
+semilogy(x_epochs, mse_taylor, 'r-', 'LineWidth', 1.5, 'Color', [0.8 0 0 0.7]); hold on;
+semilogy(x_epochs, mse_lut, 'g-', 'LineWidth', 2, 'Color', [0 0.6 0]);
+semilogy(x_epochs, mse_cordic, 'b-', 'LineWidth', 2.5, 'Color', [0 0.3 0.8]);
+
+% Ligne de référence : Objectif de convergence (ex: MSE < 10^-4)
+yline(1e-4, 'k--', 'Seuil de tolérance logique (Full Adder exact)', 'LineWidth', 1.5, 'LabelHorizontalAlignment', 'left', 'FontSize', 10);
+
+% Mise en forme
+grid on;
+set(gca, 'FontSize', 12, 'GridAlpha', 0.4);
+title('Impact de l''architecture matérielle sur la convergence du réseau (MSE)', 'FontSize', 14, 'FontWeight', 'bold');
+xlabel('Époques d''apprentissage', 'FontSize', 12, 'FontWeight', 'bold');
+ylabel('Erreur MSE (Échelle Logarithmique)', 'FontSize', 12, 'FontWeight', 'bold');
+
+% Légendes claires
+legend('Taylor : Instable (Pics de divergence)', ...
+       'LUT : Saturée (Plateau de quantification)', ...
+       'CORDIC : Convergence Idéale', ...
+       'Location', 'NorthEast', 'FontSize', 11);
+
+% Ajustement des axes
+axis([0 epochs 1e-5 1]);
+
+% Ajouter des annotations pour guider la présentation
+annotation('textbox', [0.65, 0.45, 0.2, 0.05], 'String', 'Plateau d''erreur (LUT)', ...
+    'FitBoxToText', 'on', 'BackgroundColor', 'w', 'EdgeColor', [0 0.6 0], 'Color', [0 0.6 0]);
+
+annotation('textarrow', [0.3 0.25], [0.8 0.6], 'String', 'Explosion due à x > 1 (Taylor)', ...
+    'Color', 'r', 'TextColor', 'r', 'FontWeight', 'bold');

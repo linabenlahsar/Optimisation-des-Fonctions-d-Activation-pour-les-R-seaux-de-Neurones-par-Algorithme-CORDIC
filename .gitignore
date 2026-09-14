@@ -1,0 +1,20 @@
+# MATLAB
+*.asv
+*.m~
+*.autosave
+*.mat
+slprj/
+codegen/
+
+# GNU Octave
+octave-workspace
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Generated figures
+results/*.fig
+results/*.pdf
